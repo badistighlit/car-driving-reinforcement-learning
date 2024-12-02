@@ -1,3 +1,5 @@
+from enum import Enum
+
 import pygame
 import math
 import sys
@@ -17,7 +19,7 @@ pygame.display.set_caption("JE ROUUULE !!!!!")
 class Voiture:
     def __init__(self):
         self.car_image = pygame.image.load('car.png')
-        self.car_image = pygame.transform.scale(self.car_image, (50, 50))
+        self.car_image = pygame.transform.scale(self.car_image, (60, 60))
         self.car_x, self.car_y = WIDTH //5, HEIGHT // 5
         self.car_angle = 0
         self.car_speed = 0
@@ -33,6 +35,14 @@ acceleration = 0.2  # Accélération
 max_speed = 5       # Vitesse maximale
 friction = 0.05     # Friction
 
+
+# Recompenses
+class Reward(Enum):
+
+    STOPPED = -500
+    GOAL = 1000
+    WALL = -100
+    DEFAULT = -1
 
 
 
@@ -78,7 +88,6 @@ class Game:
             # Effacer l'écran
             window.fill((0, 150, 0))  # pelouse
 
-            # Dessiner une route simple avec des virages
             pygame.draw.rect(window, (100, 100, 100), (100, 100, WIDTH - 200, HEIGHT - 200), border_radius=50)
 
             # Rotation et affichage de la voiture
