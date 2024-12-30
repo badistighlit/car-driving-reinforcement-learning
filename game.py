@@ -1,64 +1,80 @@
-from enum import Enum
 import pygame
 import math
 import sys
 
-# Initialisation
+# Initialisation de Pygame
 pygame.init()
 
-# Fenêtre
+# Dimensions de la fenêtre
 WIDTH = 800
 HEIGHT = 600
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("JE ROUUULE !!!!!")
 
-# La voiture
+# Waypoints de la piste
+waypoints = [
+    (150, 300),  # Point 1
+    (300, 150),  # Point 2
+    (500, 150),  # Point 3
+    (650, 300),  # Point 4
+    (500, 450),  # Point 5
+    (300, 450),  # Point 6
+    (150, 300)   # Retour au point 1
+]
+
+# Classe Voiture
 class Voiture:
     def __init__(self):
         self.car_image = pygame.image.load('car.png')
         self.car_image = pygame.transform.scale(self.car_image, (60, 60))
-        self.car_x, self.car_y = WIDTH // 5, HEIGHT // 5
+        self.car_x, self.car_y = waypoints[0]  # Démarre au premier waypoint
         self.car_angle = 0
-        self.car_speed = 0
+        self.car_speed = 2
+        self.current_waypoint_index = 1  # Commence à viser le deuxième waypoint
 
     def update_position(self):
-        self.car_x += self.car_speed * math.cos(math.radians(self.car_angle))
-        self.car_y -= self.car_speed * math.sin(math.radians(self.car_angle))
+        # Coordonnées du waypoint cible
+        target_x, target_y = waypoints[self.current_waypoint_index]
 
-# Paramètres du jeu
-turning_speed = 3   # Vitesse de rotation
-acceleration = 0.2  # Accélération
-max_speed = 5       # Vitesse maximale
-friction = 0.05     # Friction
+        # Calcul de la direction vers le waypoint
+        dx = target_x - self.car_x
+        dy = target_y - self.car_y
+        distance = math.hypot(dx, dy)
 
-# Récompenses
-class Reward(Enum):
-    STOPPED = -500
-    GOAL = 1000
-    WALL = -100
-    DEFAULT = -1
+        # Si la voiture est proche du waypoint, passer au suivant
+        if distance < 10:
+            self.current_waypoint_index = (self.current_waypoint_index + 1) % len(waypoints)
+            return
 
+        # Calculer l'angle vers le waypoint
+        angle_rad = math.atan2(-dy, dx)  # -dy car l'axe Y est inversé dans Pygame
+        self.car_angle = math.degrees(angle_rad)
+
+        # Déplacer la voiture vers le waypoint
+        self.car_x += self.car_speed * math.cos(angle_rad)
+        self.car_y -= self.car_speed * math.sin(angle_rad)
+
+# Fonction pour dessiner la piste
 def draw_track():
-    # bordure blanche piste
+    # Bordure blanche extérieure
     pygame.draw.rect(window, (255, 255, 255), (90, 90, WIDTH - 180, HEIGHT - 180), border_radius=100)
-    # route grise
+    # Route grise
     pygame.draw.rect(window, (100, 100, 100), (100, 100, WIDTH - 200, HEIGHT - 200), border_radius=90)
-    # bordure blanche autour du gazon central
+    # Bordure blanche intérieure
     pygame.draw.rect(window, (255, 255, 255), (190, 190, WIDTH - 380, HEIGHT - 380), border_radius=60)
-    # gazon centrale
+    # Gazon central
     pygame.draw.rect(window, (0, 150, 0), (200, 200, WIDTH - 400, HEIGHT - 400), border_radius=50)
-    # ligne de départ : boucle rouge / blanche etc ...
+    # Ligne de départ
     start_line_x = WIDTH // 2 - 30
     pygame.draw.rect(window, (255, 255, 255), (start_line_x, 100, 20, 50))
     for i in range(10):
         color = (255, 0, 0) if i % 2 == 0 else (255, 255, 255)
         pygame.draw.rect(window, color, (start_line_x, 100 + i * 10, 20, 10))
 
-
 # Jeu principal
 class Game:
     def run(self):
-        car = Voiture()  # Initialisation de la voiture
+        car = Voiture()
         running = True
         clock = pygame.time.Clock()
 
@@ -69,32 +85,14 @@ class Game:
                     pygame.quit()
                     sys.exit()
 
-            # Gestion des touches
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_UP]:  # avancer
-                car.car_speed = min(car.car_speed + acceleration, max_speed)
-            elif keys[pygame.K_DOWN]:  # reculer
-                car.car_speed = max(car.car_speed - acceleration, -max_speed / 2)
-            else:
-                # Ralenti automatique
-                if car.car_speed > 0:
-                    car.car_speed -= friction
-                elif car.car_speed < 0:
-                    car.car_speed += friction
-
-            if keys[pygame.K_LEFT]:  # tourner à gauche
-                car.car_angle += turning_speed
-            if keys[pygame.K_RIGHT]:  # tourner à droite
-                car.car_angle -= turning_speed
-
-            # Mise à jour de la position de la voiture
-            car.update_position()
-
             # Effacer l'écran (pelouse verte)
             window.fill((0, 150, 0))
 
-            # piste
+            # Dessiner la piste
             draw_track()
+
+            # Mise à jour de la position de la voiture
+            car.update_position()
 
             # Rotation et affichage de la voiture
             rotated_car = pygame.transform.rotate(car.car_image, car.car_angle)
@@ -103,9 +101,9 @@ class Game:
 
             # Mise à jour de l'affichage
             pygame.display.flip()
-            clock.tick(60)  # 60 FPS
+            clock.tick(60)  # Limite à 60 FPS
 
-# Exécution du jeu
+# Lancer le jeu
 if __name__ == "__main__":
     game = Game()
     game.run()
