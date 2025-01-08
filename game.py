@@ -19,14 +19,16 @@ class Voiture:
         self.car_x, self.car_y = WIDTH // 5, HEIGHT // 5
         self.car_angle = 0
         self.car_speed = 0
-        self.radar_matrix = []  # Stockage des données radar
+
+        # matrice du radar
+        self.radar_matrix = []
 
     def update_position(self):
         self.car_x += self.car_speed * math.cos(math.radians(self.car_angle))
         self.car_y -= self.car_speed * math.sin(math.radians(self.car_angle))
 
     def get_radar_points(self, levels, directions):
-        """Calcule les points radar pour chaque direction et niveau."""
+        """Calcule les points radar sur 6 ongle"""
         radar_points = []
         for direction in directions:
             angle = math.radians(self.car_angle + direction)
@@ -39,13 +41,13 @@ class Voiture:
         return radar_points
 
     def update_radar_matrix(self, levels, directions):
-        """Met à jour la matrice radar en détectant si les points sont sur le gazon."""
+        """MAJ du radar et détection du gazon"""
         radar_points = self.get_radar_points(levels, directions)
-        self.radar_matrix = []  # Réinitialiser la matrice radar
+        self.radar_matrix = []  # Réinitialisation du radar
         for direction_points in radar_points:
             direction_data = []
             for x, y in direction_points:
-                is_gazon = detect_gazon(x, y)  # Vérifie si le point est sur le gazon
+                is_gazon = detect_gazon(x, y)
                 direction_data.append(1 if is_gazon else 0)  # 1 = gazon, 0 = route
             self.radar_matrix.append(direction_data)
 
@@ -56,14 +58,14 @@ acceleration = 0.2  # Accélération
 max_speed = 5       # Vitesse maximale
 friction = 0.05     # Friction
 
-# Détection de la piste
+# Détection du gazon
 def detect_gazon(x, y):
-    """Vérifie si un point est sur le gazon."""
+    """x,y coordonnée donnée, renvoi si le point est dans le gazon"""
     try:
-        color = window.get_at((int(x), int(y)))[:3]  # Récupérer la couleur
-        return color == (0, 150, 0)  # True si c'est le gazon
+        color = window.get_at((int(x), int(y)))[:3]
+        return color == (0, 150, 0)  # True si c'est  vert
     except IndexError:
-        return True  # Si hors écran, on considère que c'est du gazon
+        return True
 
 # Piste
 def draw_track():
@@ -79,14 +81,13 @@ def draw_track():
 
 # Radar
 def draw_radar(car):
-    """Dessine le radar autour de la voiture et met à jour la matrice radar."""
-    levels = [50, 100, 150]  # Distances des cercles
-    directions = [0, 45, -45, 90, -90, 135, -135, 180]  # Directions radar
+    """Dessine le radar """
+    levels = [50, 100, 150]  # 3 niveau du radar
+    directions = [0, 45, -45, 90, -90, 135, -135, 180]  # les ongles
 
     # Mettre à jour la matrice radar
     car.update_radar_matrix(levels, directions)
 
-    # Dessiner les cercles concentriques autour de la voiture
     for level in levels:
         pygame.draw.circle(window, (200, 200, 200), (int(car.car_x), int(car.car_y)), level, 1)
 
@@ -99,7 +100,7 @@ def draw_radar(car):
         pygame.draw.line(window, (0, 0, 255), (car.car_x, car.car_y), direction_points[-1], 1)
 
     # Afficher la matrice radar dans la console
-    print("Radar Matrix:", car.radar_matrix)
+  #  print("Radar Matrix:", car.radar_matrix)
 
 
 # Jeu principal
