@@ -93,7 +93,7 @@ def draw_track():
 # Radar
 def draw_radar(car):
     """Dessine le radar """
-    levels = [50, 100, 150]  # 3 niveau du radar
+    levels = [30, 60, 90]  # 3 niveau du radar
     directions = [0, 45, -45, 90, -90, 135, -135, 180]  # les ongles
 
     # Mettre à jour la matrice radar
@@ -172,11 +172,10 @@ class Game:
                 car.car_speed = max(car.car_speed - acceleration, -max_speed / 2)
                 action = pygame.K_DOWN
             else:
-                # Ralenti automatique
                 if car.car_speed > 0:
-                    car.car_speed -= friction
+                    car.car_speed = max(0, car.car_speed - friction)
                 elif car.car_speed < 0:
-                    car.car_speed += friction
+                    car.car_speed = min(0, car.car_speed + friction)
 
             if keys[pygame.K_LEFT]:  # tourner à gauche
                 car.car_angle += turning_speed
