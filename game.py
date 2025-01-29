@@ -12,6 +12,15 @@ class Reward(Enum):
     WALL = -100
     DEFAULT = -1
 
+
+class Recompence(Enum):
+    DEFAULT = -1
+    STOPPED = -500
+    GOAL = 1000
+    GOAL_WRONG = -800
+    GAZON = -200
+
+
 # Fenêtre
 WIDTH = 800
 HEIGHT = 600
@@ -114,7 +123,7 @@ def draw_radar(car):
   #  print("Radar Matrix:", car.radar_matrix)
 
 class QTable():
-    def __init__(self, learning_rate=1.0, discount_factor=1.0):
+    def __init__(self, learning_rate=0.8, discount_factor=0.9):
         self.qtable = {}
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
