@@ -1,18 +1,25 @@
-import pygame  # Pour le jeu
-import math  # Pour les calculs mathématiques
-import random  # Pour les choix aléatoires (ε-greedy)
-import sys  # Pour gérer la sortie du programme
-from enum import Enum  # Pour gérer les récompenses en tant qu'énumérations
+from enum import Enum
+import pygame
+import math
+import sys
 
-# Initialisation de pygame
+# Initialisation
 pygame.init()
 
-# Récompenses
 class Reward(Enum):
     STOPPED = -500
     GOAL = 1000
     WALL = -100
     DEFAULT = -1
+
+
+class Recompence(Enum):
+    DEFAULT = -1
+    STOPPED = -500
+    GOAL = 1000
+    GOAL_WRONG = -800
+    GAZON = -200
+
 
 # Fenêtre
 WIDTH = 800
@@ -20,81 +27,137 @@ HEIGHT = 600
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("JE ROUUULE !!!!!")
 
-# Classe pour la voiture
+# La voiture
 class Voiture:
     def __init__(self):
-        self.car_image = pygame.image.load('car.png')  # Assurez-vous que l'image car.png existe
+        self.car_image = pygame.image.load('car.png')
         self.car_image = pygame.transform.scale(self.car_image, (60, 60))
         self.car_x, self.car_y = WIDTH // 5, HEIGHT // 5
         self.car_angle = 0
         self.car_speed = 0
 
+        # matrice du radar
+        self.radar_matrix = []
+
     def update_position(self):
         self.car_x += self.car_speed * math.cos(math.radians(self.car_angle))
         self.car_y -= self.car_speed * math.sin(math.radians(self.car_angle))
 
-# Détection de collision (gazon)
+    def get_radar_points(self, levels, directions):
+        """Calcule les points radar sur 6 ongle"""
+        radar_points = []
+        for direction in directions:
+            angle = math.radians(self.car_angle + direction)
+            points_for_direction = []
+            for level in levels:
+                x = self.car_x + math.cos(angle) * level
+                y = self.car_y - math.sin(angle) * level
+                points_for_direction.append((x, y))
+            radar_points.append(points_for_direction)
+        return radar_points
+
+    def update_radar_matrix(self, levels, directions):
+        """MAJ du radar et détection du gazon"""
+        radar_points = self.get_radar_points(levels, directions)
+        self.radar_matrix = []  # Réinitialisation du radar
+        for direction_points in radar_points:
+            direction_data = []
+            for x, y in direction_points:
+                is_gazon = detect_gazon(x, y)
+                direction_data.append(1 if is_gazon else 0)  # 1 = gazon, 0 = route
+            self.radar_matrix.append(direction_data)
+
+
+# Paramètres du jeu
+turning_speed = 3   # Vitesse de rotation
+acceleration = 0.2  # Accélération
+max_speed = 5       # Vitesse maximale
+friction = 0.05     # Friction
+
+# Détection du gazon
 def detect_gazon(x, y):
+    """x,y coordonnée donnée, renvoi si le point est dans le gazon"""
     try:
         color = window.get_at((int(x), int(y)))[:3]
-        return color == (0, 150, 0)  # True si vert
+        return color == (0, 150, 0)  # True si c'est  vert
     except IndexError:
         return True
 
-
 def draw_track():
-    # Bordure extérieure blanche
+    # bordure blanche piste
     pygame.draw.rect(window, (255, 255, 255), (90, 90, WIDTH - 180, HEIGHT - 180), border_radius=100)
-    # Route grise
+    # route grise
     pygame.draw.rect(window, (100, 100, 100), (100, 100, WIDTH - 200, HEIGHT - 200), border_radius=90)
-    # Bordure intérieure blanche
+    # bordure blanche autour du gazon central
     pygame.draw.rect(window, (255, 255, 255), (190, 190, WIDTH - 380, HEIGHT - 380), border_radius=60)
-    # Gazon central
+    # gazon centrale
     pygame.draw.rect(window, (0, 150, 0), (200, 200, WIDTH - 400, HEIGHT - 400), border_radius=50)
+    # ligne de départ : boucle rouge / blanche etc ...
+    start_line_x = WIDTH // 2 - 30
+    pygame.draw.rect(window, (255, 255, 255), (start_line_x, 100, 20, 50))
+    for i in range(10):
+        color = (255, 0, 0) if i % 2 == 0 else (255, 255, 255)
+        pygame.draw.rect(window, color, (start_line_x, 100 + i * 10, 20, 10))
 
-    # Ligne de départ/arrivée
-    finish_line_x = WIDTH // 2 - 30  # Position horizontale
-    pygame.draw.rect(window, (255, 255, 255), (finish_line_x, 100, 20, 50))  # Rectangle blanc
-    pygame.draw.rect(window, (255, 0, 0), (finish_line_x, 150, 20, 50))  # Rectangle rouge
+# Radar
+def draw_radar(car):
+    """Dessine le radar """
+    levels = [30, 60, 90]  # 3 niveau du radar
+    directions = [0, 45, -45, 90, -90, 135, -135, 180]  # les ongles
 
+    # Mettre à jour la matrice radar
+    car.update_radar_matrix(levels, directions)
 
-# Q-Learning
-class QLearning:
-    def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.1):
-        self.q_table = {}
-        self.alpha = alpha  # Taux d'apprentissage
-        self.gamma = gamma  # Facteur de réduction
-        self.epsilon = epsilon  # Taux d'exploration
+    for level in levels:
+        pygame.draw.circle(window, (200, 200, 200), (int(car.car_x), int(car.car_y)), level, 1)
 
-    def get_max_action(self, state):
-        if state not in self.q_table:
-            self.q_table[state] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
-        return max(self.q_table[state], key=self.q_table[state].get)
+    # Dessiner les lignes et points radar
+    radar_points = car.get_radar_points(levels, directions)
+    for direction_points in radar_points:
+        for i, (x, y) in enumerate(direction_points):
+            color = (255, 0, 0) if detect_gazon(x, y) else (0, 255, 0)
+            pygame.draw.circle(window, color, (int(x), int(y)), 3)
+        pygame.draw.line(window, (0, 0, 255), (car.car_x, car.car_y), direction_points[-1], 1)
 
-    def get_action(self, state):
-        if random.random() < self.epsilon:
-            return random.choice([pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT])
-        else:
-            return self.get_max_action(state)
+    # Afficher la matrice radar dans la console
+  #  print("Radar Matrix:", car.radar_matrix)
 
-    def update(self, state, action, reward, next_state):
-        if state not in self.q_table:
-            self.q_table[state] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
-        if next_state not in self.q_table:
-            self.q_table[next_state] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
+class QTable():
+    def __init__(self, learning_rate=0.8, discount_factor=0.9):
+        self.qtable = {}
+        self.learning_rate = learning_rate
+        self.discount_factor = discount_factor
 
-        max_q_next = max(self.q_table[next_state].values())
-        self.q_table[state][action] += self.alpha * (reward + self.gamma * max_q_next - self.q_table[state][action])
+    def set(self, position, action, reward, new_position):
+        if position not in self.qtable:
+            self.qtable[position] = {pygame.K_UP: 0, pygame.K_DOWN: 0,
+                                     pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
+        if new_position not in self.qtable:
+            self.qtable[new_position] = {pygame.K_UP: 0, pygame.K_DOWN: 0,
+                                         pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
+        change = reward + self.discount_factor * max(self.qtable[new_position].values()) - self.qtable[position][action]
+        self.qtable[position][action] += self.learning_rate * change
 
-# Classe principale du jeu
+    def __repr__(self):
+        res = ' ' * 15
+        res += 'UP     DOWN     LEFT     RIGHT\r\n'
+        for state in self.qtable:
+            res += f'{state} '
+            for action in self.qtable[state]:
+                res += f'{self.qtable[state][action]:8.1f} '
+            res += '\r\n'
+        return res
+
+# Jeu principal
 class Game:
     def run(self):
-        car = Voiture()
-        qlearning = QLearning()
+        car = Voiture()  # Initialisation de la voiture
+        qtable = QTable()  # Création de la table Q
         running = True
         clock = pygame.time.Clock()
 
-        prev_state = (int(car.car_x), int(car.car_y), int(car.car_angle))
+        # Variables pour stocker l'état précédent
+        prev_position = (int(car.car_x), int(car.car_y), int(car.car_angle))
 
         while running:
             for event in pygame.event.get():
@@ -103,67 +166,72 @@ class Game:
                     pygame.quit()
                     sys.exit()
 
-            # État actuel
+            # Position actuelle (état)
             position = (int(car.car_x), int(car.car_y), int(car.car_angle))
 
-            # Choix de l'action
-            action = qlearning.get_action(position)
-
-            # Appliquer l'action
+            # Gestion des touches
+            keys = pygame.key.get_pressed()
             reward = Reward.DEFAULT.value
-            if action == pygame.K_UP:
-                car.car_speed = min(car.car_speed + 0.2, 5)  # Accélération
-            elif action == pygame.K_DOWN:
-                car.car_speed = max(car.car_speed - 0.2, -2.5)  # Frein
-            elif action == pygame.K_LEFT:
-                car.car_angle += 3  # Rotation à gauche
-            elif action == pygame.K_RIGHT:
-                car.car_angle -= 3  # Rotation à droite
+            action = None
 
+            if keys[pygame.K_UP]:  # avancer
+                car.car_speed = min(car.car_speed + acceleration, max_speed)
+                action = pygame.K_UP
+            elif keys[pygame.K_DOWN]:  # reculer
+                car.car_speed = max(car.car_speed - acceleration, -max_speed / 2)
+                action = pygame.K_DOWN
+            else:
+                if car.car_speed > 0:
+                    car.car_speed = max(0, car.car_speed - friction)
+                elif car.car_speed < 0:
+                    car.car_speed = min(0, car.car_speed + friction)
+
+            if keys[pygame.K_LEFT]:  # tourner à gauche
+                car.car_angle += turning_speed
+                action = pygame.K_LEFT
+            if keys[pygame.K_RIGHT]:  # tourner à droite
+                car.car_angle -= turning_speed
+                action = pygame.K_RIGHT
+
+            # Mise à jour de la position de la voiture
             car.update_position()
 
-            # Vérification de collision
+            # Nouvelle position (état futur)
+            new_position = (int(car.car_x), int(car.car_y), int(car.car_angle))
+
+            # Vérification des collisions ou hors-piste
             if car.car_x < 100 or car.car_x > WIDTH - 100 or car.car_y < 100 or car.car_y > HEIGHT - 100:
                 reward = Reward.WALL.value
                 car.car_speed = 0  # Arrêt de la voiture
-                print(f"Malus pris ! Position: ({car.car_x}, {car.car_y}), Récompense: {reward}")
 
-            # Nouvel état après action
-            next_state = (int(car.car_x), int(car.car_y), int(car.car_angle))
+            # Mise à jour de la table Q
+            if action:
+                qtable.set(position, action, reward, new_position)
 
-            # Mise à jour de la Q-table
-            qlearning.update(position, action, reward, next_state)
+            # Afficher la table Q seulement si la voiture bouge
+            if position != prev_position:  # Si la position a changé
+                print(qtable)
+                prev_position = position  # Mettre à jour l'état précédent
 
-            # Affichage
-            window.fill((0, 150, 0))  # Gazon
-            draw_track()  # Piste
+            # Effacer l'écran (pelouse verte)
+            window.fill((0, 150, 0))
 
-            # Dessiner la voiture
+            # piste
+            draw_track()
+
+            # Rotation et affichage de la voiture
             rotated_car = pygame.transform.rotate(car.car_image, car.car_angle)
             car_rect = rotated_car.get_rect(center=(car.car_x, car.car_y))
             window.blit(rotated_car, car_rect.topleft)
 
-            # Mise à jour de l'écran
+            # Radar
+            draw_radar(car)
+
+            # Mise à jour de l'affichage
             pygame.display.flip()
-            clock.tick(60)
+            clock.tick(60)  # 60 FPS
 
-def check_finish_line(car):
-    """Vérifie si la voiture traverse la ligne d'arrivée."""
-    finish_line_x = WIDTH // 2 - 30
-    return finish_line_x <= car.car_x <= finish_line_x + 20 and 100 <= car.car_y <= 200
-
-
-
-def reset_position(self):
-    self.car_x = WIDTH // 2 - 70  # Juste à côté de la ligne
-    self.car_y = 150
-    self.car_angle = 0
-    self.car_speed = 0
-
-
-
-
-# Lancer le jeu
+# Exécution du jeu
 if __name__ == "__main__":
     game = Game()
     game.run()
