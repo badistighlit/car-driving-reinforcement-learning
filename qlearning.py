@@ -1,26 +1,29 @@
 import pygame
+import random
 
+class QLearning:
+    def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.2):  # ✅ Augmenté epsilon pour plus d'exploration
+        self.q_table = {}
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
 
-class QTable:
-    def __init__(self, learning_rate=0.8, discount_factor=0.9):
-        self.qtable = {}
-        self.learning_rate = learning_rate
-        self.discount_factor = discount_factor
+    def get_max_action(self, state):
+        if state not in self.q_table:
+            self.q_table[state] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
+        return max(self.q_table[state], key=self.q_table[state].get)
 
-    def set(self, position, action, reward, new_position):
-        if position not in self.qtable:
-            self.qtable[position] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
-        if new_position not in self.qtable:
-            self.qtable[new_position] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
+    def get_action(self, state):
+        if random.random() < self.epsilon:
+            return random.choice([pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT])
+        else:
+            return self.get_max_action(state)
 
-        change = reward + self.discount_factor * max(self.qtable[new_position].values()) - self.qtable[position][action]
-        self.qtable[position][action] += self.learning_rate * change
+    def update(self, state, action, reward, next_state):
+        if state not in self.q_table:
+            self.q_table[state] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
+        if next_state not in self.q_table:
+            self.q_table[next_state] = {pygame.K_UP: 0, pygame.K_DOWN: 0, pygame.K_LEFT: 0, pygame.K_RIGHT: 0}
 
-    def __repr__(self):
-        res = ' ' * 15 + 'UP     DOWN     LEFT     RIGHT\r\n'
-        for state in self.qtable:
-            res += f'{state} '
-            for action in self.qtable[state]:
-                res += f'{self.qtable[state][action]:8.1f} '
-            res += '\r\n'
-        return res
+        max_q_next = max(self.q_table[next_state].values())
+        self.q_table[state][action] += self.alpha * (reward + self.gamma * max_q_next - self.q_table[state][action])

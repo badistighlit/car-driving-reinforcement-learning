@@ -1,17 +1,16 @@
 import pygame
 import sys
-from config import WIDTH, HEIGHT, ACCELERATION, MAX_SPEED, TURNING_SPEED, FRICTION
+from config import WIDTH, HEIGHT, ACCELERATION, MAX_SPEED, TURNING_SPEED, FRICTION, MAX_REVERSE_SPEED
 from voiture import Voiture
 from track import draw_track
-from radar import draw_radar
-from qlearning import QTable
+from qlearning import QLearning
 
 class Game:
     def __init__(self):
         self.window = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("JE ROUUULE !!!!!")
         self.car = Voiture()
-        self.qtable = QTable()
+        self.qlearning = QLearning()
         self.clock = pygame.time.Clock()
 
     def run(self):
@@ -24,40 +23,41 @@ class Game:
                     pygame.quit()
                     sys.exit()
 
-            # ✅ Gestion des touches pour faire avancer la voiture
-            keys = pygame.key.get_pressed()
+            position = (int(self.car.car_x), int(self.car.car_y), int(self.car.car_angle))
+            action = self.qlearning.get_action(position)
 
-            if keys[pygame.K_UP]:  # Avancer
+            reward = -1  # Pénalité par défaut
+            if action == pygame.K_UP:
                 self.car.car_speed = min(self.car.car_speed + ACCELERATION, MAX_SPEED)
-            elif keys[pygame.K_DOWN]:  # Reculer
-                self.car.car_speed = max(self.car.car_speed - ACCELERATION, -MAX_SPEED / 2)
-            else:
-                # Ajout de la friction
-                if self.car.car_speed > 0:
-                    self.car.car_speed = max(0, self.car.car_speed - FRICTION)
-                elif self.car.car_speed < 0:
-                    self.car.car_speed = min(0, self.car.car_speed + FRICTION)
-
-            if keys[pygame.K_LEFT]:  # Tourner à gauche
+            elif action == pygame.K_DOWN:
+                self.car.car_speed = max(self.car.car_speed - ACCELERATION, MAX_REVERSE_SPEED)
+            elif action == pygame.K_LEFT:
                 self.car.car_angle += TURNING_SPEED
-            if keys[pygame.K_RIGHT]:  # Tourner à droite
+            elif action == pygame.K_RIGHT:
                 self.car.car_angle -= TURNING_SPEED
 
-            # ✅ Mettre à jour la position de la voiture
             self.car.update_position()
 
-            # Effacer l'écran (gazon vert)
+            # Détection de collision
+            if self.car.car_x < 100 or self.car.car_x > WIDTH - 100 or self.car.car_y < 100 or self.car.car_y > HEIGHT - 100:
+                reward = -100
+                self.car.reset_position()
+
+            # Vérifier si la ligne d’arrivée est franchie
+            if WIDTH // 2 - 30 <= self.car.car_x <= WIDTH // 2 - 10 and 100 <= self.car.car_y <= 200:
+                reward = 1000  # ✅ Récompense pour un tour réussi !
+                print("🚗💨 Ligne d'arrivée franchie !")
+                self.car.reset_position()
+
+            next_position = (int(self.car.car_x), int(self.car.car_y), int(self.car.car_angle))
+            self.qlearning.update(position, action, reward, next_position)
+
             self.window.fill((0, 150, 0))
-
-            # Dessiner la piste et le radar
             draw_track(self.window)
-            draw_radar(self.window, self.car)
 
-            # Rotation et affichage de la voiture
             rotated_car = pygame.transform.rotate(self.car.car_image, self.car.car_angle)
             car_rect = rotated_car.get_rect(center=(self.car.car_x, self.car.car_y))
             self.window.blit(rotated_car, car_rect.topleft)
 
-            # Mise à jour de l'affichage
             pygame.display.flip()
-            self.clock.tick(60)  # 60 FPS
+            self.clock.tick(60)

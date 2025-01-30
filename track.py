@@ -9,6 +9,4 @@ def draw_track(window):
 
     start_line_x = WIDTH // 2 - 30
     pygame.draw.rect(window, WHITE, (start_line_x, 100, 20, 50))
-    for i in range(10):
-        color = RED if i % 2 == 0 else WHITE
-        pygame.draw.rect(window, color, (start_line_x, 100 + i * 10, 20, 10))
+    pygame.draw.rect(window, RED, (start_line_x, 150, 20, 50))
