@@ -15,11 +15,12 @@ class Voiture:
     def update_position(self):
         new_x = self.car_x + self.car_speed * math.cos(math.radians(self.car_angle))
         new_y = self.car_y - self.car_speed * math.sin(math.radians(self.car_angle))
-        if 0 <= new_x <= WIDTH - 60 and 0 <= new_y <= HEIGHT - 60:
+
+        if not (0 <= new_x <= WIDTH - 60 and 0 <= new_y <= HEIGHT - 60):
+            self.reset_position()
+        else:
             self.car_x = new_x
             self.car_y = new_y
-        else:
-            self.car_speed = 0
 
     def get_radar_points(self, levels, directions):
         radar_points = []
