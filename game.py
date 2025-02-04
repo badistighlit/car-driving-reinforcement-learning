@@ -97,10 +97,14 @@ class Game:
             else:
                 reward = Reward.DEFAULT.value
 
-            # Vérification de collision avec le bord de la piste
+            # Vérification des collisions sur les bords extérieurs
             if (self.car.car_x < 100 or self.car.car_x > WIDTH - 100 or
                 self.car.car_y < 100 or self.car.car_y > HEIGHT - 100):
-                self.car.car_speed = self.car.car_speed
+                reward = Reward.WALL.value
+
+            # Vérification si la voiture se trouve sur le gazon central
+            elif (200 <= self.car.car_x <= WIDTH - 200 and
+                200 <= self.car.car_y <= HEIGHT - 200):
                 reward = Reward.WALL.value
 
             # Obtenir le nouvel état
