@@ -2,7 +2,7 @@ import pygame
 import random
 
 class QLearning:
-    def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.2):  # ✅ Augmenté epsilon pour plus d'exploration
+    def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.5):
         self.q_table = {}
         self.alpha = alpha
         self.gamma = gamma
@@ -27,3 +27,7 @@ class QLearning:
 
         max_q_next = max(self.q_table[next_state].values())
         self.q_table[state][action] += self.alpha * (reward + self.gamma * max_q_next - self.q_table[state][action])
+
+        # ✅ Réduction progressive d'epsilon pour moins d'exploration
+        if self.epsilon > 0.01:
+            self.epsilon *= 0.995
