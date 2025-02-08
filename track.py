@@ -8,15 +8,15 @@ def draw_track(window):
     pygame.draw.rect(window, WHITE, (190, 190, WIDTH - 380, HEIGHT - 380), border_radius=60)
     pygame.draw.rect(window, GREEN, (200, 200, WIDTH - 400, HEIGHT - 400), border_radius=50)
 
-    # 🏁 Ligne d’arrivée en haut
+  # ligne d'arrivée
     start_line_x = WIDTH // 2 - 30
     pygame.draw.rect(window, WHITE, (start_line_x, 100, 20, 50))
     for i in range(10):
         color = RED if i % 2 == 0 else WHITE
         pygame.draw.rect(window, color, (start_line_x, 100 + i * 10, 20, 10))
 
-    # 🔵 Checkpoint en bas
-    checkpoint_y = HEIGHT - 200  # Doit correspondre à update_rewards
+    #  Checkpoint
+    checkpoint_y = HEIGHT - 200
     for i in range(10):
         color = GREY if i % 2 == 0 else WHITE
         pygame.draw.rect(window, color, (start_line_x, checkpoint_y + i * 10, 20, 10))

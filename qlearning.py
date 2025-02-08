@@ -2,94 +2,94 @@ import random
 import pygame
 import pickle
 import os
-from config import WIDTH, HEIGHT
-from utils import detect_gazon
+
 
 QTABLE_FILE = "qtable.pkl"
 
 class QTable:
-    def __init__(self, learning_rate=0.2, discount_factor=0.8):
+    def __init__(self, learning_rate=0.35, discount_factor=0.8):
         self.qtable = {}
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.max_reward = float('-inf')  # Initialise avec une très petite valeur
         self.min_reward = float('inf')   # Initialise avec une très grande valeur
         self.load_qtable()  # Charger la Q-table au démarrage
+        self.state_visits = {}
 
     def simplify_radar_data(self, radar_data):
-        """
-        Simplifie les données radar en zones de danger plus précises
-        """
-        n_angles = len(radar_data)  # Nombre de directions radar
+
+        #Simplifie le radar en 4 directions avec 3 niveaux de danger.
+
+        #  devant  derrière  à gauche, à droite
+        directions = [0, 180, -90, 90]
         radar_state = []
 
-        # Définir des seuils de distance plus précis
-        thresholds = [20, 40, 60, 80]  # Très proche, proche, moyen, loin
+        thresholds = [40, 70, 100]  # Niveaux de distance pour faible, moyen, élevé
 
-        for i in range(n_angles):
-            # Conversion des distances en niveaux de danger
-            distances = radar_data[i]
-            if not distances:  # Si pas de données pour cet angle
-                radar_state.append(0)
-                continue
+        for i, direction in enumerate(directions):
+            if i < len(radar_data):
+                distances = radar_data[i]
+                if not distances:
+                    radar_state.append(0)  # Pas de danger
+                    continue
 
-            # Trouve la distance minimale pour cet angle
-            min_distance = min(distances)
+                min_distance = min(distances)
 
-            # Conversion en niveau de danger (0 = pas de danger, 4 = danger maximal)
-            if min_distance <= thresholds[0]:
-                danger_level = 4  # Danger maximal
-            elif min_distance <= thresholds[1]:
-                danger_level = 3
-            elif min_distance <= thresholds[2]:
-                danger_level = 2
-            elif min_distance <= thresholds[3]:
-                danger_level = 1
-            else:
-                danger_level = 0  # Pas de danger
+                #le niveau de danger
+                if min_distance <= thresholds[0]:
+                    danger_level = 2  # Élevé
+                elif min_distance <= thresholds[1]:
+                    danger_level = 1  # Moyen
+                else:
+                    danger_level = 0  # Faible
 
-            radar_state.append(danger_level)
+                radar_state.append(danger_level)
 
         return tuple(radar_state)
 
     def get_state_key(self, state, window):
-        """
-        Crée une clé d'état qui inclut les données radar simplifiées
-        """
+
         if not state:
             return None
 
         position_x, position_y, radar_data, car_angle = state
 
-        # Simplifier la position en grille plus large
-        grid_x = int(position_x // 50)  # Grille de 50x50 pixels
-        grid_y = int(position_y // 50)
+        # Simplifier la position en grille en case de 25 PX
+        grid_x = int(position_x // 25)
+        grid_y = int(position_y // 25)
+        #print(f"position: ({grid_x}, {grid_y}), angle: {car_angle}, radar: {radar_data}")
 
-        # Simplifier l'angle en 8 directions (45 degrés chacune)
-        angle_index = int((car_angle % 360) //45)
+        # Simplifier l'angle en 12 en 30 degres
+        angle_index = int((car_angle % 360) // 30)
 
-        # Obtenir les données radar simplifiées
         radar_state = self.simplify_radar_data(radar_data)
 
         # Détection du gazon
-        on_grass = 1 if detect_gazon(position_x, position_y, window) else 0
+        #on_grass = 1 if detect_gazon(position_x, position_y, window) else 0
 
         # Retourner l'état complet
-        return (grid_x, grid_y, radar_state, angle_index, on_grass)
+        return (grid_x, grid_y, radar_state, angle_index)
 
-    def choose_action(self, state, epsilon, actions,window):
-        """Choisit une action avec epsilon-greedy."""
+    def choose_action(self, state, epsilon, actions, window):
+
+
+        state_key = self.get_state_key(state, window)
+        if state_key is None:
+            return random.choice(actions)
+
+        #état est inconnu
+        if state_key not in self.qtable:
+            return random.choice(actions)
+
+        # Exploration
         if random.random() < epsilon:
             return random.choice(actions)
 
-        state_key = self.get_state_key(state,window)
-        if state_key is None or state_key not in self.qtable:
-            return random.choice(actions)
-
+        # Exploitation : on choisit l'action ayant la meilleure Q-value pour l'état donné
+        #print(self.qtable[state_key])
         return max(self.qtable[state_key], key=self.qtable[state_key].get)
 
     def set(self, state, action, reward, next_state, window):
-        """Updates Q-table with improved reward scaling and momentum"""
         if not state or not next_state:
             return
 
@@ -101,10 +101,10 @@ class QTable:
 
         # Initialize if new state
         if current_state_key not in self.qtable:
-            # Bias initial values towards forward movement
+
             self.qtable[current_state_key] = {
-                pygame.K_UP: 1.0,  # Slight bias for forward
-                pygame.K_DOWN: -1.0,  # Negative bias for reverse
+                pygame.K_UP: 1.0,
+                pygame.K_DOWN: -1.0,
                 pygame.K_LEFT: 0.0,
                 pygame.K_RIGHT: 0.0
             }
@@ -118,21 +118,19 @@ class QTable:
                 pygame.K_RIGHT: 0.0
             }
 
-        # Update reward tracking
+        # Update reward
         self.max_reward = max(self.max_reward, reward)
         self.min_reward = min(self.min_reward, reward)
 
-        # Scale reward to prevent extreme values
-        scaled_reward = reward / max(abs(self.max_reward), abs(self.min_reward)) if self.max_reward != float(
-            '-inf') else reward
+        # Scale reward
+        reward_range = max(1, int(self.max_reward - self.min_reward))
+        scaled_reward = (reward - self.min_reward) / reward_range
+        scaled_reward = max(-1, min(1, scaled_reward))  # Garde les valeurs entre -1 et 1
 
-        # Get current Q value
         current_q = self.qtable[current_state_key][action]
 
-        # Get max Q value for next state
         next_max_q = max(self.qtable[next_state_key].values())
 
-        # Update Q value with momentum
         momentum = 0.1
         new_q = current_q + self.learning_rate * (
                 scaled_reward +
@@ -146,13 +144,13 @@ class QTable:
         self.save_qtable()
 
     def save_qtable(self):
-        """Sauvegarde la Q-table dans un fichier."""
+        """Sauvegarde"""
         with open(QTABLE_FILE, "wb") as f:
             pickle.dump(self.qtable, f)
         #print(f"QTable sauvegardée ({len(self.qtable)} états)")
 
     def load_qtable(self):
-        """Charge la Q-table depuis un fichier."""
+        """Charge """
         if os.path.exists(QTABLE_FILE):
             with open(QTABLE_FILE, "rb") as f:
                 self.qtable = pickle.load(f)

@@ -1,13 +1,11 @@
 import pygame
 import sys
-import random
 from config import WIDTH, HEIGHT, ACCELERATION, MAX_SPEED, TURNING_SPEED, FRICTION
 from utils import detect_gazon, detect_proximite_gazon
 from voiture import Voiture
 from track import draw_track
 from radar import draw_radar
 from qlearning import QTable
-from reward import Reward
 
 AUTO_MODE = True
 
@@ -16,30 +14,39 @@ class Game:
         self.window = pygame.display.set_mode((WIDTH, HEIGHT))
         pygame.display.set_caption("JE ROUUULE !!!!!")
         self.car = Voiture()
-        self.car.car_x = WIDTH - 350  # Behind the finish line
+
+        self.car.car_x = WIDTH - 350  #  juste avant la ligne darrivee
         self.car.car_y = HEIGHT // 4
-        self.car.car_angle = 180  # Facing left
+        self.car.car_angle = 180
+
+
         self.qtable = QTable()
         self.reward = 0
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
+
+
         self.stuck_time = 0
         self.epsilon = 1.0  # Initial exploration rate
-        self.epsilon_decay = 0.9995
+        self.epsilon_decay = 0.995
         self.epsilon_min = 0.1
         self.actions = [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]
+
+
         self.nmbrTour = 0
         self.reward_max=0
 
 
-        # Ajout pour détecter l'immobilité
+        # détecter l'immobilité
         self.stationary_time = 0
         self.last_position = (self.car.car_x, self.car.car_y)
         self.stationary_penalty_threshold = 300
 
     def choose_action(self, state):
         possible_actions = self.actions.copy()
-        return self.qtable.choose_action(state, self.epsilon, possible_actions,self.window)
+        x =self.qtable.choose_action(state, self.epsilon, possible_actions,self.window)
+        #print(x)
+        return x
 
     def update_rewards(self, prev_x, new_x, prev_angle):
 
@@ -52,66 +59,71 @@ class Game:
         checkpoint_y = HEIGHT - 200
 
 
-        direction_reward = 100 if self.car.car_speed > 0 else -200
-        self.reward += direction_reward
 
-        # pénalités si marche arriere
-        if self.car.car_speed < 0:
-            self.reward -= abs(self.car.car_speed) * 100
 
-        if detect_proximite_gazon(self,self.car.car_x,self.car.car_y,10):
-            self.reward -= 500
 
+
+
+        # si stationnée
         self.reward += self.check_stationary_penalty()
 
-        # 🏁 **5. Récompense pour franchir la ligne d'arrivée**
+
+
+        # SI AVANCE SUR LA ROUTE a bonne vitesse
+        if (detect_gazon(self.car.car_x, self.car.car_y, self.window)== False):
+            if self.car.car_speed > 0:
+                optimal_speed = 7
+                speed_diff = abs(self.car.car_speed - optimal_speed)
+                self.reward += max(0, 50 - (speed_diff * 5))
+            self.reward += 1
+
+
+        #  Récompense pour franchir la ligne darrivee
         if (prev_x > finish_line_x + 10 and new_x <= finish_line_x + 10 and
                 self.car.car_y >= finish_line_y_min and self.car.car_y <= finish_line_y_max):
             if self.car.car_speed < 0:
                 self.nmbrTour += 1
-                self.reward -= 6000   # Réduction de la pénalité si en marche arrière
+                self.reward -= 6000
+                print(f" FAUUUUUUX !!!!!!!!!!!!!!!!!!!!!!!!") # pénalité si en marche arrière
             else:
                 self.nmbrTour += 1
-                self.reward += 10000 * self.nmbrTour  # Augmentation de la récompense
-                print(f"🏆 REWARDDDDDD !!!!!!!!!!!!!!!!!!!!!!!!")
-
+                self.reward += 10000 * self.nmbrTour  #récompense
+                print(f" GOAAAAAAAAAAAL !!!!!!!!!!!!!!!!!!!!!!!!")
+        # checkpoint
         if (prev_x > finish_line_x+ 10 and new_x <= finish_line_x +10 and
-                checkpoint_y <= self.car.car_y <= checkpoint_y + 60):  # Largeur ajustée
+                checkpoint_y <= self.car.car_y <= checkpoint_y + 60):
             if self.car.car_speed > 0:
                 self.reward += 5000
-                print("✅ CHECKPOINT FRANCHI !")
+                print("CHECKPOINT FRANCHI !")
 
-        # Pénalités principales
+
+
+        # Pénalités
+
+        # si gazon
         if detect_gazon(self.car.car_x, self.car.car_y, self.window):
             self.reward -= 10000
-            return  # Arrête l'évaluation des autres récompenses si sur le gazon
-        if (detect_gazon(self.car.car_x, self.car.car_y, self.window)== False):
-            speed_bonus = abs(self.car.car_speed) * 5
-            if self.car.car_speed > 0:
-                self.reward += speed_bonus
-            self.reward += 100
-        # Récompenses pour la conduite
+            return  # Arrête l'évaluation
 
 
-            # Bonus pour conduite fluide
-            if abs(prev_angle - self.car.car_angle) < 45:
-                self.reward += 50
 
-        # Pénalité légère pour l'immobilité
-        if abs(self.car.car_speed) < 0.1:
-            self.reward -= 10
+        # si pas très loin du gazon
+        if detect_proximite_gazon(self,self.car.car_x,self.car.car_y,3):
+            self.reward -= 500
+
+
+
+
+
+        #if abs(prev_angle - self.car.car_angle) > 90:
+         #   self.reward -= 50  # si virage brusque
+
+
+        # Pénalité pour marche arrière
         if self.car.car_speed < 0:
-            self.reward-=2000
-
-
-        if abs(prev_angle - self.car.car_angle) > 90:
-            self.reward -= 50  # Réduire la récompense pour un virage trop brusque
-        # Pénalité pour marche arrière pendant que l'agent roule en arrière
-        if self.car.car_speed < 0:
-            self.reward -= 50  # Pénalité plus légère pour marche arrière continue
+            self.reward -= 50
 
     def run(self):
-        """Main game loop, handling events, updating the game state, and rendering the display."""
         global AUTO_MODE
         running = True
         while running:
@@ -134,7 +146,7 @@ class Game:
                     int(self.car.car_x),
                     int(self.car.car_y),
                     tuple(map(tuple, self.car.radar_matrix)),
-                    int(self.car.car_angle // 30)
+                    int(self.car.car_angle)
                 )
 
                 action = self.choose_action(state)
@@ -145,36 +157,45 @@ class Game:
             # Apply action
             if action == pygame.K_UP:
                 self.car.car_speed = min(self.car.car_speed + ACCELERATION, MAX_SPEED)
-                self.reward += 2  # Bonus for moving forward
+                #self.reward += 2  # Bonus for moving forward
             if action == pygame.K_DOWN:
                 self.car.car_speed = max(self.car.car_speed - ACCELERATION, -MAX_SPEED / 2)
-                self.reward -= 50  # Penalty for reversing
+                #self.reward -= 50  # Penalty for reversing
             if action == pygame.K_LEFT:
                 self.car.car_angle += TURNING_SPEED
             if action == pygame.K_RIGHT:
                 self.car.car_angle -= TURNING_SPEED
-                self.reward -= 0.5
+                #self.reward -= 0.5
             if action is None:
                 self.car.car_speed = max(0, self.car.car_speed - FRICTION) if self.car.car_speed > 0 else min(0, self.car.car_speed + FRICTION)
+
+
 
             prev_x = self.car.car_x
             isRenitialiser = self.car.update_position()
             if isRenitialiser:
                 self.reward = 0
-                self.nmbrTour = 0  # Reset if necessary
+                self.nmbrTour = 0  # Reset
             prev_angle = self.car.car_angle
+
+
+
+            #MAJ REWARDS
             self.update_rewards(prev_x, self.car.car_x, prev_angle)
 
-            #if self.reward <= -30000000:
-             #   #print("🚨 Réinitialisation : trop de points négatifs accumulés !")
-              #  self.car.reset_position()
-               # self.reward = 0
-                #self.stuck_time = 0  # Remet aussi le compteur de blocage à zéro
 
-            # Avoid getting stuck
-            if abs(self.car.car_speed) < 3:  # Only if really stuck
+
+            # si trop de points négatifs rénitialiser
+            if self.reward <= -30000:
+                #print("🚨 Réinitialisation : trop de points négatifs !")
+                self.car.reset_position()
+                self.reward = 0
+                self.stuck_time = 0
+
+            # si la voiture est bloquee
+            if abs(self.car.car_speed) < 3:
                 self.stuck_time += 1
-                if self.stuck_time > 500:  # Increase patience before resetting
+                if self.stuck_time > 500:
                     self.car.reset_position()
                     self.stuck_time = 0
                     self.reward = 0
@@ -188,14 +209,15 @@ class Game:
                 new_grid_x,
                 new_grid_y,
                 tuple(map(tuple, self.car.radar_matrix)),
-                int(self.car.car_angle // 30)
+                int(self.car.car_angle)
             )
 
-            self.qtable.set(state, action, self.reward, new_state,self.window)
+            self.qtable.set(state, action, self.reward+10, new_state,self.window)
+
 
             self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
-            # Rendering
+            # Affichage
             self.window.fill((0, 150, 0))
             draw_track(self.window)
             draw_radar(self.window, self.car)
@@ -205,7 +227,7 @@ class Game:
             reward_text = self.font.render(f'Reward: {self.reward}', True, (255, 255, 255))
             mode_text = self.font.render(f"Mode: {'AUTO' if AUTO_MODE else 'MANUEL'}", True, (255, 255, 255))
             if self.reward > self.reward_max : self.reward_max = self.reward
-            scoremax = self.font.render(f'scoremax: {self.reward_max}', True, (255, 255, 255))
+            scoremax = self.font.render(f'scoremax: {self.reward_max}', True, (0, 0, 0))
             self.window.blit(reward_text, (10, 10))
             self.window.blit(mode_text, (10, 50))
             self.window.blit(scoremax, (10, 100))
@@ -213,16 +235,14 @@ class Game:
             self.clock.tick(120)
 
     def get_grid_position(self):
-        """Retourne la position de la voiture sur une grille de 50x50 pixels"""
-        grid_x = int(self.car.car_x // 50)
-        grid_y = int(self.car.car_y // 50)
+        grid_x = int(self.car.car_x // 100)
+        grid_y = int(self.car.car_y // 100)
         return (grid_x, grid_y)
 
     def check_stationary_penalty(self):
-        """Vérifie si la voiture est restée trop longtemps dans la même zone et applique une pénalité"""
         current_grid_pos = self.get_grid_position()
 
-        # Initialiser les attributs s'ils n'existent pas
+        # Initialiser les attributs
         if not hasattr(self, 'last_grid_pos'):
             self.last_grid_pos = current_grid_pos
             self.grid_stationary_time = 0
@@ -231,9 +251,11 @@ class Game:
         # Si on est dans la même case
         if current_grid_pos == self.last_grid_pos:
             self.grid_stationary_time += 1
-            # Appliquer une pénalité si on reste trop longtemps (plus de 60 frames ~ 0.5 seconde à 120 FPS)
-            if self.grid_stationary_time > 60:
-                return -500  # Pénalité pour stagnation
+
+
+            if self.grid_stationary_time > 60 and abs(self.car.car_speed<3):
+                #print("+60!")
+                return -1000
         else:
             # Réinitialiser le compteur si on change de case
             self.grid_stationary_time = 0
