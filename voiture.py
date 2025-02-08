@@ -18,6 +18,9 @@ class Voiture:
 
         if not (0 <= new_x <= WIDTH - 60 and 0 <= new_y <= HEIGHT - 60):
             self.reset_position()
+            #self.car_x = self.car_x
+            #self.car_y = self.car_y
+            return True
         else:
             self.car_x = new_x
             self.car_y = new_y
