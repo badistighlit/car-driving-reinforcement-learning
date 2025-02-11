@@ -15,10 +15,10 @@ class Game:
         pygame.display.set_caption("JE ROUUULE !!!!!")
         self.car = Voiture()
 
-        self.car.car_x = WIDTH - 350  #  juste avant la ligne darrivee
-        self.car.car_y = HEIGHT // 4
-        self.car.car_angle = 180
-
+        #self.car.car_x = WIDTH - 350  #  juste avant la ligne darrivee
+        #self.car.car_y = HEIGHT // 4
+        #self.car.car_angle = 180
+        self.car.reset_position()
 
         self.qtable = QTable()
         self.reward = 0
@@ -27,9 +27,9 @@ class Game:
 
 
         self.stuck_time = 0
-        self.epsilon = 1.0  # Initial exploration rate
-        self.epsilon_decay = 0.995
-        self.epsilon_min = 0.1
+        self.epsilon = 0.6  # exploration rate
+        self.epsilon_decay = 0.999
+        self.epsilon_min = 0.2
         self.actions = [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]
 
 
@@ -71,10 +71,11 @@ class Game:
 
         # SI AVANCE SUR LA ROUTE a bonne vitesse
         if (detect_gazon(self.car.car_x, self.car.car_y, self.window)== False):
+            #print("route")
             if self.car.car_speed > 0:
                 optimal_speed = 7
                 speed_diff = abs(self.car.car_speed - optimal_speed)
-                self.reward += max(0, 50 - (speed_diff * 5))
+                self.reward += max(0, 50 - (speed_diff * 2))
             self.reward += 1
 
 
@@ -96,32 +97,70 @@ class Game:
                 self.reward += 5000
                 print("CHECKPOINT FRANCHI !")
 
+        if abs(prev_angle - self.car.car_angle) > 70:
+            self.reward -= 20
+        elif 10 < abs(prev_angle - self.car.car_angle) <= 60:
+            self.reward += 10
+
+        # GESTION VIRAGE
+        if (self.get_grid_position() in [(5, 1), (6, 3), (2, 4), (1, 3)]):
+            if abs(prev_angle - self.car.car_angle) > 60:
+                self.reward -= 30  #  virage trop brusque
+            elif 15 < abs(prev_angle - self.car.car_angle) <= 60:
+                self.reward += 50  # bon angle de virage
+
+            # Encourager une vitesse modérée dans le virage
+            if 3 <= self.car.car_speed <= 7:
+                self.reward += 100  #  bonne gestion de vitesse
+            elif self.car.car_speed > 9:
+                self.reward -= 50  # Trop rapide
+
+        # acceleration sans toucher le gazon bieeeeeeen
+        if prev_x < self.car.car_x and not detect_gazon(self.car.car_x, self.car.car_y, self.window):
+            self.reward += 100
 
 
-        # Pénalités
+            # Pénalités
 
         # si gazon
         if detect_gazon(self.car.car_x, self.car.car_y, self.window):
-            self.reward -= 10000
+            self.reward -= 100
+            # si mur proche
+            if (abs(WIDTH - self.car.car_x) < 10 or self.car.car_x < 10):
+                self.reward-=2000
+
+
+            if (abs(HEIGHT - self.car.car_y) < 10 or self.car.car_y < 10):
+                self.reward-=2000
+
+            #print("gazon")
             return  # Arrête l'évaluation
 
 
 
         # si pas très loin du gazon
-        if detect_proximite_gazon(self,self.car.car_x,self.car.car_y,3):
-            self.reward -= 500
+        if detect_proximite_gazon(self,self.car.car_x,self.car.car_y,1):
+            self.reward -= 1
+
+        if self.get_grid_position() == (6, 1) and -100 <= self.car.car_angle <= -50:
+            self.reward += 200
+            if  -85 <= self.car.car_angle <= -95 :
+                self.reward += 200
+            print(self.car.car_angle)# Récompense pour bien prendre le virage
+
+        if self.get_grid_position() == (5, 1) and -100 <= self.car.car_angle <= -50:
+            self.reward += 200
+
+            print(self.car.car_angle)# Récompense pour bien prendre le virage
 
 
 
 
-
-        #if abs(prev_angle - self.car.car_angle) > 90:
-         #   self.reward -= 50  # si virage brusque
 
 
         # Pénalité pour marche arrière
         if self.car.car_speed < 0:
-            self.reward -= 50
+            self.reward -= 1000
 
     def run(self):
         global AUTO_MODE
@@ -157,14 +196,13 @@ class Game:
             # Apply action
             if action == pygame.K_UP:
                 self.car.car_speed = min(self.car.car_speed + ACCELERATION, MAX_SPEED)
-                #self.reward += 2  # Bonus for moving forward
             if action == pygame.K_DOWN:
                 self.car.car_speed = max(self.car.car_speed - ACCELERATION, -MAX_SPEED / 2)
-                #self.reward -= 50  # Penalty for reversing
+                #self.reward -= 100
             if action == pygame.K_LEFT:
-                self.car.car_angle += TURNING_SPEED
+                self.car.car_angle += TURNING_SPEED+10
             if action == pygame.K_RIGHT:
-                self.car.car_angle -= TURNING_SPEED
+                self.car.car_angle -= TURNING_SPEED+10
                 #self.reward -= 0.5
             if action is None:
                 self.car.car_speed = max(0, self.car.car_speed - FRICTION) if self.car.car_speed > 0 else min(0, self.car.car_speed + FRICTION)
@@ -186,7 +224,7 @@ class Game:
 
 
             # si trop de points négatifs rénitialiser
-            if self.reward <= -30000:
+            if self.reward <= -100000:
                 #print("🚨 Réinitialisation : trop de points négatifs !")
                 self.car.reset_position()
                 self.reward = 0
@@ -253,9 +291,9 @@ class Game:
             self.grid_stationary_time += 1
 
 
-            if self.grid_stationary_time > 60 and abs(self.car.car_speed<3):
+            if  abs(self.car.car_speed<1):
                 #print("+60!")
-                return -1000
+                return -1 * self.grid_stationary_time
         else:
             # Réinitialiser le compteur si on change de case
             self.grid_stationary_time = 0

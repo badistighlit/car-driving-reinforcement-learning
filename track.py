@@ -1,5 +1,6 @@
 import pygame
-from config import WIDTH, HEIGHT, WHITE, GREY, GREEN, RED
+from config import WIDTH, HEIGHT, WHITE, GREY, GREEN, RED, BLUE
+
 
 def draw_track(window):
     # Dessiner la piste
@@ -20,3 +21,15 @@ def draw_track(window):
     for i in range(10):
         color = GREY if i % 2 == 0 else WHITE
         pygame.draw.rect(window, color, (start_line_x, checkpoint_y + i * 10, 20, 10))
+
+    grid_size = 100
+    for x in range(0, WIDTH, grid_size):
+        pygame.draw.line(window, RED, (x, 0), (x, HEIGHT), 1)
+    for y in range(0, HEIGHT, grid_size):
+        pygame.draw.line(window, RED, (0, y), (WIDTH, y), 1)
+    grid_size = 100
+    for x in range(0, WIDTH, grid_size):
+        pygame.draw.line(window, BLUE, (x, 0), (x, HEIGHT), 1)
+    for y in range(0, HEIGHT, grid_size):
+        pygame.draw.line(window, BLUE, (0, y), (WIDTH, y), 1)
+

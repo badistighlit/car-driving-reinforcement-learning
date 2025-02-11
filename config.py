@@ -3,9 +3,9 @@ WIDTH = 800
 HEIGHT = 600
 
 # Paramètres du jeu
-TURNING_SPEED = 9  # Était 3 -> x3
-ACCELERATION = 0.6  # Était 0.2 -> x3
-MAX_SPEED = 15      # Était 5 -> x3
+TURNING_SPEED = 6  # Était 3 -> x3
+ACCELERATION = 0.4  # Était 0.2 -> x3
+MAX_SPEED = 10      # Était 5 -> x3
 FRICTION = 0.15      # Était 0.05 -> x3
 
 # Couleurs
