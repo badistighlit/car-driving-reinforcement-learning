@@ -4,10 +4,10 @@ import pickle
 import os
 import numpy as np
 
-QTABLE_FILE = "qtable.pkl"
+QTABLE_FILE = "qtable_backup.pkl"
 
 class QTable:
-    def __init__(self, learning_rate=0.5, discount_factor=0.9):
+    def __init__(self, learning_rate=1, discount_factor=0.9):
         self.qtable = {}
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -73,14 +73,17 @@ class QTable:
         if current_state_key is None or next_state_key is None:
             return
 
-        # Initialisation des nouveaux états
+        # initialisation des nouveaux états
         for state_key in [current_state_key, next_state_key]:
             if state_key not in self.qtable:
                 self.qtable[state_key] = {pygame.K_UP: 5.0, pygame.K_DOWN: 5.0,
                                           pygame.K_LEFT: 5.0, pygame.K_RIGHT: 5.0}
 
         # Limitation des récompenses
-        reward = np.clip(reward, -100, 100)
+        max_score = 100000  # Score max observé
+        min_score = -30000  # Score min observé
+        reward = 10 * (reward - min_score) / (max_score - min_score) - 5
+
 
         # Récupération des valeurs Q actuelles
         current_q = self.qtable[current_state_key].get(action, 0)
@@ -127,13 +130,13 @@ class QTable:
                 current_q = self.qtable[state].get(action, 0)
                 next_max_q = max(self.qtable[next_state].values(), default=0)
 
-                # Vérification NaN/Inf
+                # Vérification NaN
                 if np.isnan(current_q) or np.isinf(current_q):
                     current_q = 0
                 if np.isnan(next_max_q) or np.isinf(next_max_q):
                     next_max_q = 0
 
-                # Mise à jour Q-learning
+                # mise à jour Qlearning
                 new_q = current_q + self.learning_rate * (reward + self.discount_factor * next_max_q - current_q)
 
                 if np.isnan(new_q) or np.isinf(new_q):
@@ -142,6 +145,11 @@ class QTable:
                 self.qtable[state][action] = new_q
 
     def save_qtable(self):
+        try:
+            with open(QTABLE_FILE, "wb") as f:
+                pickle.dump(self.qtable, f)
+        except OSError as e:
+            print(f"Erreur lors de la sauvegarde de la QTable: {e}")
         with open(QTABLE_FILE, "wb") as f:
             pickle.dump(self.qtable, f)
 

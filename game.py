@@ -1,11 +1,15 @@
 import pygame
 import sys
+import matplotlib.pyplot as plt
+import pickle
 from config import WIDTH, HEIGHT, ACCELERATION, MAX_SPEED, TURNING_SPEED, FRICTION
 from utils import detect_gazon, detect_proximite_gazon
 from voiture import Voiture
 from track import draw_track
 from radar import draw_radar
 from qlearning import QTable
+
+
 
 AUTO_MODE = True
 
@@ -28,7 +32,7 @@ class Game:
 
         self.stuck_time = 0
         self.epsilon = 0.6  # exploration rate
-        self.epsilon_decay = 0.999
+        self.epsilon_decay = 0.9995
         self.epsilon_min = 0.2
         self.actions = [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]
 
@@ -41,6 +45,10 @@ class Game:
         self.stationary_time = 0
         self.last_position = (self.car.car_x, self.car.car_y)
         self.stationary_penalty_threshold = 300
+
+
+        self.scores = []
+        UPDATE_FREQUENCY = 5
 
     def choose_action(self, state):
         possible_actions = self.actions.copy()
@@ -165,6 +173,7 @@ class Game:
     def run(self):
         global AUTO_MODE
         running = True
+        update_counter = 0
         while running:
             keys = pygame.key.get_pressed()
 
@@ -224,7 +233,7 @@ class Game:
 
 
             # si trop de points négatifs rénitialiser
-            if self.reward <= -100000:
+            if self.reward <= -10000:
                 #print("🚨 Réinitialisation : trop de points négatifs !")
                 self.car.reset_position()
                 self.reward = 0
@@ -254,6 +263,12 @@ class Game:
 
 
             self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
+            update_counter +=1
+
+            self.scores.append(self.reward)
+            if(update_counter %2000000 == 0 or self.reward>self.reward_max) :
+                Game.plot_progression(self.scores, "progression_qlearning.png")  # sauvegarde courbe
 
             # Affichage
             self.window.fill((0, 150, 0))
@@ -300,3 +315,15 @@ class Game:
             self.last_grid_pos = current_grid_pos
 
         return 0
+
+    @staticmethod
+    def plot_progression(scores, save_path="progression.png"):
+        plt.figure(figsize=(10, 5))
+        plt.plot(scores, label="Score par épisode", color='blue')
+        plt.xlabel("Épisodes")
+        plt.ylabel("Score")
+        plt.title("Progression du Score de l'Agent")
+        plt.legend()
+        plt.grid()
+        plt.savefig(save_path)
+        plt.show()
