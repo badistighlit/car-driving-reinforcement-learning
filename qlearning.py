@@ -4,7 +4,7 @@ import pickle
 import os
 import numpy as np
 
-QTABLE_FILE = "qtable_backup.pkl"
+QTABLE_FILE = "qtableV2.pkl"
 
 class QTable:
     def __init__(self, learning_rate=1, discount_factor=0.9):
